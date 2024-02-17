@@ -1,19 +1,25 @@
 import socket
+import asyncio
 
 
-def main():
+async def handle_client(reader, writer):
     pong = b"+PONG\r\n"
 
-    server_socket = socket.create_server(("localhost", 6379))
-    server_socket.listen()
-
     while True:
-        client, client_address = server_socket.accept()
-        with client:
-            while True:
-                msg = client.recv(1024)
-                client.send(pong)
+        data = await reader.read(1024)
+        if not data:
+            break
+        writer.write(pong)
+        await writer.drain()
+    writer.close()
+
+
+async def main():
+    server = await asyncio.start_server(handle_client, "localhost", 6379)
+
+    async with server:
+        await server.serve_forever()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
