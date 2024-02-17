@@ -2,11 +2,14 @@ import socket
 
 
 def main():
-    print("Logs from your program will appear here!")
+    pong = b"+PONG\r\n"
 
-    # Uncomment this to pass the first stage
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
-    server_socket.accept() # wait for client
+    client, client_address = server_socket.accept()
+
+    with client:
+        client.recv(1024)
+        client.send(pong)
 
 
 if __name__ == "__main__":
