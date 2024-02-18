@@ -1,15 +1,24 @@
 import asyncio
+import time
 
 class KeyValueStore:
     """A simple in-memory key-value store"""
     def __init__(self):
         self.store = {}
 
-    def set(self, key, value):
-        self.store[key] = value
+    def set(self, key, value, px=None):
+        expiry = time.time() * 1000 + px if px is not None else None
+        self.store[key] = (value, expiry)
 
     def get(self, key):
-        return self.store.get(key, None)
+        item = self.store.get(key, None)
+        if item is not None:
+            value, expiry = item
+            if expiry is None or expiry > time.time() * 1000:
+                return value
+            else:
+                del self.store[key]
+        return None
 
 class CommandParser:
     """Parses RESP data into commands and arguments"""
@@ -22,7 +31,13 @@ class CommandParser:
         elif command == "set":
             key = lines[4].decode()
             value = lines[6].decode()
-            return command, [key, value]
+            px = None
+            if len(lines) > 8 and lines[8].decode().lower() == "px":
+                try:
+                    px = int(lines[10].decode())
+                except ValueError:
+                    pass
+            return command, [key, value, px]
         elif command == "get":
             key = lines[4].decode()
             return command, [key]
@@ -49,8 +64,9 @@ class ClientHandler:
         if command == "echo":
             return f"${len(args[0])}\r\n{args[0]}\r\n"
         elif command == "set":
-            key, value = args
-            self.key_value_store.set(key, value)
+            key, value = args[:2]
+            px = args[2] if len(args) > 2 else None
+            self.key_value_store.set(key, value, px)
             return "+OK\r\n"
         elif command == "get":
             key = args[0]
