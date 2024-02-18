@@ -1,8 +1,11 @@
 import asyncio
 import time
+import argparse
+
 
 class KeyValueStore:
     """A simple in-memory key-value store"""
+
     def __init__(self):
         self.store = {}
 
@@ -20,8 +23,10 @@ class KeyValueStore:
                 del self.store[key]
         return None
 
+
 class CommandParser:
     """Parses RESP data into commands and arguments"""
+
     async def parse(self, response):
         lines = response.split(b"\r\n")
         command = lines[2].decode().lower()
@@ -43,8 +48,10 @@ class CommandParser:
             return command, [key]
         return command, []
 
+
 class ClientHandler:
     """Handles client connections and requests"""
+
     def __init__(self, key_value_store, command_parser: CommandParser):
         self.key_value_store = key_value_store
         self.command_parser = command_parser
@@ -77,14 +84,25 @@ class ClientHandler:
                 return "$-1\r\n"
         return "+PONG\r\n"
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Redis-like server with support for custom ports')
+    parser.add_argument('--port', type=int, default=6379, help='Port number to start the Redis server on')
+    args = parser.parse_args()
+    return args.port
+
+
 async def main():
+    port = parse_arguments()  # Get the port number from command-line arguments
+
     store = KeyValueStore()
     command_parser = CommandParser()
     handler = ClientHandler(store, command_parser)
 
-    server = await asyncio.start_server(handler.handle, 'localhost', 6379)
+    server = await asyncio.start_server(handler.handle, 'localhost', port)
     async with server:
         await server.serve_forever()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
