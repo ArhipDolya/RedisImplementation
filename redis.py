@@ -8,6 +8,8 @@ class KeyValueStore:
 
     def __init__(self):
         self.store = {}
+        self.master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"  # Hardcoded replication ID
+        self.master_repl_offset = 0
 
     def set(self, key, value, px=None):
         expiry = time.time() * 1000 + px if px is not None else None
@@ -57,9 +59,10 @@ class CommandParser:
 class ClientHandler:
     """Handles client connections and requests"""
 
-    def __init__(self, key_value_store, command_parser: CommandParser):
+    def __init__(self, key_value_store, command_parser: CommandParser, role='master'):
         self.key_value_store = key_value_store
         self.command_parser = command_parser
+        self.role = role
 
     async def handle(self, reader, writer):
         while True:
@@ -89,7 +92,11 @@ class ClientHandler:
                 return "$-1\r\n"
         elif command == 'info':
             if args and args[0].lower() == 'replication':
-                info_response = "role:master"
+                info_response = (
+                    f"role:{self.role}\r\n"
+                    f"master_replid:{self.key_value_store.master_replid}\r\n"
+                    f"master_repl_offset:{self.key_value_store.master_repl_offset}"
+                )
                 return f"${len(info_response)}\r\n{info_response}\r\n"
             else:
                 return "$0\r\n\r\n"
@@ -97,18 +104,21 @@ class ClientHandler:
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Redis-like server with support for custom ports')
+    parser = argparse.ArgumentParser(description='Redis-like server with support for custom ports and replication')
     parser.add_argument('--port', type=int, default=6379, help='Port number to start the Redis server on')
+    parser.add_argument('--replicaof', nargs=2, metavar=('MASTER_HOST', 'MASTER_PORT'),
+                        help='Run as a replica of the specified master server')
     args = parser.parse_args()
-    return args.port
+    return args.port, args.replicaof
 
 
 async def main():
-    port = parse_arguments()  # Get the port number from command-line arguments
+    port, replicaof = parse_arguments()  # Get the port number from command-line arguments
+    role = 'slave' if replicaof else 'master'
 
     store = KeyValueStore()
     command_parser = CommandParser()
-    handler = ClientHandler(store, command_parser)
+    handler = ClientHandler(store, command_parser, role=role)
 
     server = await asyncio.start_server(handler.handle, 'localhost', port)
     async with server:
