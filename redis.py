@@ -46,6 +46,11 @@ class CommandParser:
         elif command == "get":
             key = lines[4].decode()
             return command, [key]
+        elif command == "info":
+            arg = None
+            if len(lines) > 4:
+                arg = lines[4].decode().lower()
+            return command, [arg] if arg else []
         return command, []
 
 
@@ -82,6 +87,12 @@ class ClientHandler:
                 return f"${len(value)}\r\n{value}\r\n"
             else:
                 return "$-1\r\n"
+        elif command == 'info':
+            if args and args[0].lower() == 'replication':
+                info_response = "role:master"
+                return f"${len(info_response)}\r\n{info_response}\r\n"
+            else:
+                return "$0\r\n\r\n"
         return "+PONG\r\n"
 
 
